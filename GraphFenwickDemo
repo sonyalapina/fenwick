@@ -1,0 +1,246 @@
+class FenwickTree {
+    private int[] tree;
+    private int size;
+
+    public FenwickTree(int size) {
+        if (size <= 0) throw new IllegalArgumentException("размер должен быть положительным");
+        this.size = size;
+        this.tree = new int[size + 1];
+    }
+
+    private void checkIndex(int index) {
+        if (index < 0 || index >= size) throw new IndexOutOfBoundsException("индекс выходит за границы");
+    }
+
+    public void build(int[] arr) {
+        if (arr == null) throw new IllegalArgumentException("массив не может быть null");
+        if (arr.length != size) throw new IllegalArgumentException("размер массива должен быть " + size);
+
+        this.tree = new int[size + 1];
+
+        for (int i = 0; i < size; i++) {
+            update(i, arr[i]);
+        }
+    }
+
+    public void update(int index, int delta) {
+        checkIndex(index);
+        int i = index + 1;
+        while (i <= size) {
+            tree[i] += delta;
+            i += i & -i;
+        }
+    }
+
+    public int prefixSum(int index) {
+        checkIndex(index);
+        int sum = 0;
+        int i = index + 1;
+        while (i > 0) {
+            sum += tree[i];
+            i -= i & -i;
+        }
+        return sum;
+    }
+
+    public int rangeSum(int left, int right) {
+        checkIndex(left);
+        checkIndex(right);
+        if (left > right) throw new IllegalArgumentException("левый индекс больше правого, так не должно быть");
+        return prefixSum(right) - (left > 0 ? prefixSum(left - 1) : 0);
+    }
+
+}
+
+//реализация списка без использования готовых коллекций
+class SimpleList {
+    private int[] data;
+    private int size;
+    private int capacity;
+
+    public SimpleList() {
+        this.capacity = 10;
+        this.data = new int[capacity];
+        this.size = 0;
+    }
+
+    public void add(int value) {
+        if (size == capacity) {
+            resize();
+        }
+        data[size++] = value;
+    }
+
+    private void resize() {
+        capacity *= 2;
+        int[] newData = new int[capacity];
+        for (int i = 0; i < size; i++) {
+            newData[i] = data[i];
+        }
+        data = newData;
+    }
+
+    public int get(int index) {
+        if (index < 0 || index >= size) throw new IndexOutOfBoundsException("индекс: " + index + ", размер: " + size);
+        return data[index];
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public int[] toArray() {
+        int[] result = new int[size];
+        for (int i = 0; i < size; i++) {
+            result[i] = data[i];
+        }
+        return result;
+    }
+
+    //метод для строкового представления массива
+    public String arrayToString(int[] arr) {
+        if (arr == null) return "null";
+        if (arr.length == 0) return "[]";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        for (int i = 0; i < arr.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(arr[i]);
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+}
+
+//граф с поддержкой операций через дерево Фенвика
+class GraphWithFenwick {
+    private SimpleList[] graph;
+    private boolean[] visited;
+    private int[] inTime, outTime;
+    private int timer;
+    private FenwickTree fenwickTree;
+    private boolean isDirected;
+    private int vertexCount;
+
+    public GraphWithFenwick(int vertexCount, boolean isDirected) {
+        if (vertexCount <= 0) throw new IllegalArgumentException("кол-во вершин должно быть положительным");
+        this.vertexCount = vertexCount;
+        this.isDirected = isDirected;
+        this.graph = new SimpleList[vertexCount];
+        for (int i = 0; i < vertexCount; i++) {
+            graph[i] = new SimpleList();
+        }
+        this.visited = new boolean[vertexCount];
+        this.inTime = new int[vertexCount];
+        this.outTime = new int[vertexCount];
+        this.timer = 0;
+    }
+
+    private void checkVertex(int vertex) {
+        if (vertex < 0 || vertex >= vertexCount) throw new IndexOutOfBoundsException("некорректный номер вершины");
+    }
+
+    public void addEdge(int from, int to) {
+        checkVertex(from);
+        checkVertex(to);
+        graph[from].add(to);
+        if (!isDirected && from != to) {
+            graph[to].add(from);
+        }
+    }
+
+    public void buildGraph() {
+        timer = 0;
+        for (int i = 0; i < vertexCount; i++) {
+            visited[i] = false;
+        }
+
+        for (int i = 0; i < vertexCount; i++) {
+            if (!visited[i]) {
+                eulerDfs(i, -1);
+            }
+        }
+        this.fenwickTree = new FenwickTree(2 * vertexCount);
+    }
+
+    private void eulerDfs(int vertex, int parent) {
+        visited[vertex] = true;
+        inTime[vertex] = timer++;
+
+        SimpleList neighbors = graph[vertex];
+        for (int i = 0; i < neighbors.size(); i++) {
+            int neighbor = neighbors.get(i);
+            if (neighbor != parent && !visited[neighbor]) {
+                eulerDfs(neighbor, vertex);
+            }
+        }
+
+        outTime[vertex] = timer++;
+    }
+
+    public void addToVertex(int vertex, int value) {
+        checkVertex(vertex);
+        fenwickTree.update(inTime[vertex], value);
+    }
+
+    public int subtreeSum(int vertex) {
+        checkVertex(vertex);
+        return fenwickTree.rangeSum(inTime[vertex], outTime[vertex]);
+    }
+
+    public String getVertexInfo(int vertex) {
+        checkVertex(vertex);
+        return String.format("вершина %d: in=%d, out=%d, сумма поддерева=%d",
+                vertex, inTime[vertex], outTime[vertex], subtreeSum(vertex));
+    }
+
+    public String getVertexNeighbors(int vertex) {
+        checkVertex(vertex);
+        int[] neighbors = graph[vertex].toArray();
+        SimpleList list = new SimpleList(); //для вызова arrayToString
+        return "соседи вершины " + vertex + ": " + list.arrayToString(neighbors);
+    }
+}
+
+public class GraphFenwickDemo {
+    public static void main(String[] args) {
+        System.out.println("---- ДЕМОНСТРАЦИЯ ГРАФОВ С ДЕРЕВОМ ФЕНВИКА ----\n");
+
+        FenwickTree fenwick = new FenwickTree(5);
+        fenwick.build(new int[]{2, 4, 6, 8, 10});
+        System.out.println("FenwickTree: rangeSum(1,3) = " + fenwick.rangeSum(1, 3));
+
+        System.out.println("\n--- НЕОРИЕНТИРОВАННЫЙ ГРАФ ---");
+        GraphWithFenwick undirGraph = new GraphWithFenwick(4, false);
+        undirGraph.addEdge(0, 1);
+        undirGraph.addEdge(0, 2);
+        undirGraph.addEdge(1, 3);
+        undirGraph.buildGraph();
+
+        for (int i = 0; i < 4; i++) undirGraph.addToVertex(i, (i + 1) * 10);
+        System.out.println(undirGraph.getVertexNeighbors(0)); //показывает двусторонние связи
+        System.out.println(undirGraph.getVertexInfo(0));
+
+        System.out.println("\n--- ОРИЕНТИРОВАННЫЙ ГРАФ ---");
+        GraphWithFenwick dirGraph = new GraphWithFenwick(4, true);
+        dirGraph.addEdge(0, 1);
+        dirGraph.addEdge(0, 2);
+        dirGraph.addEdge(1, 3);
+        dirGraph.buildGraph();
+
+        for (int i = 0; i < 4; i++) dirGraph.addToVertex(i, (i + 1) * 15);
+        System.out.println(dirGraph.getVertexNeighbors(0)); //показывает односторонние связи
+        System.out.println(dirGraph.getVertexInfo(0));
+
+        System.out.println("\n--- ОБНОВЛЕНИЯ И ОШИБКИ ---");
+        undirGraph.addToVertex(1, 50);
+        System.out.println("после обновления: " + undirGraph.getVertexInfo(1));
+
+        try {
+            undirGraph.addToVertex(10, 100);
+        } catch (Exception e) {
+            System.out.println("ошибка: " + e.getMessage());
+        }
+    }
+}
